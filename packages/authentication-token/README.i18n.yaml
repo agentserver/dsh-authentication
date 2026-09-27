@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/authentication-token/README.md
+/:
+  en: 02d013165b4d817f
+  zh: f4ced2617f0c519a
+/deepseek-ai-dsh-authentication-token:
+  en: e6059ce4b670349c
+  zh: c3f537df31e26aa0
+/deepseek-ai-dsh-authentication-token/summary:
+  en: 3c0ea13269e82736
+  zh: 5b7342ac46dd56a6
+/deepseek-ai-dsh-authentication-token/table-of-contents:
+  en: 4e53164159b5ce41
+  zh: 89582dc0294d0776
+/deepseek-ai-dsh-authentication-token/use-this-package:
+  en: 0435ffd16148b74f
+  zh: 2531cb2c3c400e1b
+/deepseek-ai-dsh-authentication-token/model-experience:
+  en: 1b27a2c6f783a756
+  zh: f96a0f3395f8a652
+/deepseek-ai-dsh-authentication-token/model-experience/kv-cache-effect:
+  en: 2372dfe5b90da96f
+  zh: edce2dbce11ff2b1
+/deepseek-ai-dsh-authentication-token/known-limitations-and-deferred-work:
+  en: 252fe9b48a09468f
+  zh: 859df438fd651950
+/deepseek-ai-dsh-authentication-token/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 25e979141fbe5501

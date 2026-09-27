@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/authentication-oidc/README.md
+/:
+  en: a3aa9e5e406448a3
+  zh: 56002b3abadb209d
+/deepseek-ai-dsh-authentication-oidc:
+  en: 0ba9cc65841aa442
+  zh: 03922c799925e9bf
+/deepseek-ai-dsh-authentication-oidc/summary:
+  en: 5829e87853fc7a99
+  zh: 1b489ba942f35985
+/deepseek-ai-dsh-authentication-oidc/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-authentication-oidc/use-this-package:
+  en: b06e6e918e680701
+  zh: 89cf2ba1253455de
+/deepseek-ai-dsh-authentication-oidc/understand-the-implementation:
+  en: 1c48b00e592e80e9
+  zh: 9b991ddb6625aef9
+/deepseek-ai-dsh-authentication-oidc/further-exploration:
+  en: c4b4ee715afded39
+  zh: 388fb37dba728df5
+/deepseek-ai-dsh-authentication-oidc/model-experience:
+  en: c290ad31af377751
+  zh: c3de08b6c049827c
+/deepseek-ai-dsh-authentication-oidc/model-experience/kv-cache-effect:
+  en: 56342b57f1410a03
+  zh: 00671582ca25bd70
+/deepseek-ai-dsh-authentication-oidc/known-limitations-and-deferred-work:
+  en: a09bd906e44b924b
+  zh: 3cb36cd8a09351f7
+/deepseek-ai-dsh-authentication-oidc/known-limitations-and-deferred-work/dev-note:
+  en: fafcd13b9c770781
+  zh: 3542aa832c46bc27

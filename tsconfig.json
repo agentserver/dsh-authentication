@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/authentication/tsconfig.json" },
+    { "path": "./packages/authentication-token/tsconfig.json" },
+    { "path": "./packages/authentication-oidc/tsconfig.json" }
+  ]
+}

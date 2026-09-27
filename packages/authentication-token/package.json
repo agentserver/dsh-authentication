@@ -1,0 +1,35 @@
+{
+  "name": "@agentserver/dsh-authentication-token",
+  "description": "Launch-token authentication provider for DeepSeek Harness",
+  "version": "0.1.0",
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentserver/dsh-authentication.git",
+    "directory": "packages/authentication-token"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/types/**/*.d.ts"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@agentserver/dsh-authentication": "^0.1.0",
+    "@deepseek-ai/dsh-credentials": ">=0.0.1-rc.1"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@agentserver/dsh-authentication": "workspace:*",
+    "@deepseek-ai/dsh-credentials": ">=0.0.1-rc.1"
+  }
+}

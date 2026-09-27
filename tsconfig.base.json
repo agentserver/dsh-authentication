@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noImplicitAny": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "rewriteRelativeImportExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@agentserver/dsh-authentication": ["packages/authentication/src"],
+      "@agentserver/dsh-authentication-token": ["packages/authentication-token/src"],
+      "@agentserver/dsh-authentication-oidc": ["packages/authentication-oidc/src"],
+      "@deepseek-ai/dsh-credentials": ["types/dsh-credentials.d.ts"],
+      "@deepseek-ai/dsh-host-webserver": ["types/dsh-host-webserver.d.ts"]
+    }
+  }
+}
