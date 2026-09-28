@@ -1,7 +1,7 @@
 {
   "name": "@agentserver/dsh-authentication-token",
   "description": "Launch-token authentication provider for DeepSeek Harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
-    "@agentserver/dsh-authentication": "^0.2.0",
+    "@agentserver/dsh-authentication": "^0.2.1",
     "@deepseek-ai/dsh-credentials": ">=0.0.1-rc.1"
   },
   "dependencies": {

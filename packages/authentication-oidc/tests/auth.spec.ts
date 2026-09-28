@@ -50,16 +50,13 @@ describe('OidcAuthenticator', () => {
       {} as never,
     )
     const output = response()
-    expect(auth.start(request('/', { host: '127.0.0.1:3080' }), output.value)).toBe('handled')
+    auth.start(request('/', { host: '127.0.0.1:3080' }), output.value)
     expect(output.value.status).toBe(302)
     const location = new URL(output.value.headers?.location ?? '')
     expect(location.origin).toBe('https://issuer.example')
     expect(location.searchParams.get('code_challenge_method')).toBe('S256')
     expect(location.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(location.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]+$/)
-    const tokenEntry = response()
-    expect(auth.start(request('/?token=local-token', { host: '127.0.0.1:3080' }), tokenEntry.value)).toBe('decline')
-    expect(tokenEntry.value.status).toBeUndefined()
   })
 
   it('exchanges a callback code, verifies the ID token, and mints a cookie', async () => {

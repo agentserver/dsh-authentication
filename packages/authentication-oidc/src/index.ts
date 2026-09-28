@@ -5,7 +5,6 @@ import { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {
-  AuthenticationDecision,
   AuthenticationIndexRequest,
   AuthenticationIndexResponse,
   AuthenticationProvider,
@@ -233,15 +232,10 @@ export class OidcAuthenticator implements AuthenticationProvider {
       : { kind: 'authenticated', principal }
   }
 
-  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision {
-    // Preserve the explicit launch-token entry point when the local provider
-    // is mounted beside OIDC; an OIDC redirect is the fallback for ordinary
-    // browser navigation.
-    const requested = new URL(request.url ?? '/', 'http://dsh.invalid')
-    if (requested.searchParams.has('token')) return 'decline'
+  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): void {
     const host = authority(request)
     if (host === undefined || request.method !== 'GET') {
-      response.writeHead(401, { 'cache-control': 'no-store' }); response.end(); return 'handled'
+      response.writeHead(401, { 'cache-control': 'no-store' }); response.end(); return
     }
     const now = Date.now()
     for (const [candidate, pending] of this.pending) {
@@ -267,7 +261,6 @@ export class OidcAuthenticator implements AuthenticationProvider {
     authorization.searchParams.set('code_challenge', encode(createHash('sha256').update(verifier).digest()))
     authorization.searchParams.set('code_challenge_method', 'S256')
     redirectResponse(response, authorization.href)
-    return 'handled'
   }
 
   principal(request: AuthenticationRequest): OidcPrincipal | undefined {

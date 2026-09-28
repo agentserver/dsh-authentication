@@ -1,130 +1,117 @@
-/** Browser authentication service definition and provider registry. */
-
+/** Authentication dispatch and explicit browser login selection. */
 import { Context, Service } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import type { AuthenticationProvider, AuthenticationRequest, AuthenticationIndexResponse, AuthenticationResult } from './types.ts'
+export type * from './types.ts'
 
-/** Incoming request facts used by authentication providers. */
-export interface AuthenticationRequest {
-  readonly method?: string | undefined
-  readonly url?: string | undefined
-  readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
-  readonly signal?: AbortSignal | undefined
+/** Deployment-selected login entry; it does not change credential acceptance. */
+export interface Config {
+  readonly defaultProvider?: string
 }
 
-/** Frontend index request accepted by the authentication entry flow. */
-export type AuthenticationIndexRequest = AuthenticationRequest
-
-/** Minimal response writer owned by an authentication provider. */
-export interface AuthenticationIndexResponse {
-  writeHead(status: number, headers?: Readonly<Record<string, string>>): unknown
-  end(body?: string): unknown
-}
-
-/** Identity established by one authentication provider. */
-export interface AuthenticationPrincipal {
-  /** Provider that established the identity. */
-  readonly provider: string
-  /** Stable provider subject, when the provider has one. */
-  readonly subject?: string
-  /** Request authority to which the browser session is bound. */
-  readonly authority?: string
-}
-
-/** Result returned by one authentication provider. */
-export type AuthenticationResult =
-  | { readonly kind: 'authenticated'; readonly principal: AuthenticationPrincipal }
-  | { readonly kind: 'anonymous' }
-
-/** Result of an unauthenticated frontend entry request. */
-export type AuthenticationDecision = 'allow' | 'handled' | 'decline'
-
-/** One independently installable browser authentication provider. */
-export interface AuthenticationProvider {
-  /** Stable provider id used for selection and diagnostics. */
-  readonly id: string
-  /** Provider precedence when more than one provider can start a login. @default 0 */
-  readonly priority?: number
-  /** Validate this provider's request credential. */
-  authenticate(request: AuthenticationRequest): AuthenticationResult | Promise<AuthenticationResult>
-  /** Start this provider's browser login flow for an anonymous request. */
-  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision | Promise<AuthenticationDecision>
-  /** Build the URL that starts this provider's login flow. */
-  authenticatedUrl(baseUrl: string): string
-}
+/** Configuration schema. */
+export const Config: z<Config> = z.object({ defaultProvider: z.string() })
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Browser authentication provider registry. */
     authentication: AuthenticationService
   }
 }
 
-/** Registry consumed by the Connection carrier. */
+/** Authentication registry; tenant and resource permissions are consumer policy. */
 export class AuthenticationService extends Service {
-  private readonly providers = new Map<string, AuthenticationProvider>()
+  static Config = Config
+  private readonly registered = new Map<string, AuthenticationProvider>()
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, private readonly config: Config = {}) {
     super(ctx, 'authentication')
   }
 
-  /**
-   * Register one provider and return its disposer.
-   * @param provider - provider implementation.
-   * @returns disposer that removes the provider when its plugin unloads.
-   */
+  /** Register a provider; the caller attaches the returned disposer to its fiber. */
   register(provider: AuthenticationProvider): () => void {
-    if (this.providers.has(provider.id)) throw new Error(`authentication provider "${provider.id}" is already registered`)
-    this.providers.set(provider.id, provider)
+    if (this.registered.has(provider.id)) throw new Error('authentication: duplicate provider ' + provider.id)
+    this.registered.set(provider.id, provider)
     return () => {
-      if (this.providers.get(provider.id) === provider) this.providers.delete(provider.id)
+      if (this.registered.get(provider.id) === provider) this.registered.delete(provider.id)
     }
   }
 
+  /** List installed provider ids without selecting a login method. */
+  providers(): readonly string[] {
+    return [...this.registered.keys()].sort()
+  }
+
   /**
-   * Authenticate a request through the registered providers.
-   * @param request - incoming request facts.
-   * @returns the first authenticated principal, or an anonymous result.
+   * Authenticate once per provider. Conflicting accepted credentials and explicit rejections fail closed.
+   * Provider failures reject the operation, never fall back to another method.
+   * Cancellation and provider withdrawal during verification prevent admission.
    */
   async authenticate(request: AuthenticationRequest): Promise<AuthenticationResult> {
-    for (const provider of this.ordered()) {
+    request.signal?.throwIfAborted()
+    let accepted: AuthenticationResult = { kind: 'anonymous' }
+    const checked: AuthenticationProvider[] = []
+    for (const id of this.providers()) {
+      const provider = this.requireProvider(id)
       const result = await provider.authenticate(request)
-      if (result.kind === 'authenticated') return result
+      checked.push(provider)
+      request.signal?.throwIfAborted()
+      if (checked.some(item => this.registered.get(item.id) !== item)) return { kind: 'rejected', status: 401 }
+      if (result.kind === 'rejected') return result
+      if (result.kind === 'authenticated') {
+        if (accepted.kind === 'authenticated') return { kind: 'rejected', status: 401 }
+        accepted = { kind: 'authenticated', principal: Object.freeze({ ...result.principal, provider: id }) }
+      }
     }
-    return { kind: 'anonymous' }
+    return accepted
   }
 
-  /**
-   * Authenticate a frontend index request, then start one registered login flow.
-   * @param request - incoming index request.
-   * @param response - response owned when no provider allows the request.
-   * @returns true when the frontend may serve the index.
-   */
-  async authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): Promise<boolean> {
-    if ((await this.authenticate(request)).kind === 'authenticated') return true
-    for (const provider of this.ordered()) {
-      const decision = await provider.start(request, response)
-      if (decision === 'allow') return true
-      if (decision === 'handled') return false
+  /** Authenticate the index or hand its response to one explicit login entry. */
+  async authorizeIndex(request: AuthenticationRequest, response: AuthenticationIndexResponse): Promise<boolean> {
+    const result = await this.authenticate(request)
+    if (result.kind === 'authenticated') return true
+    if (result.kind === 'rejected') {
+      response.writeHead(result.status, { 'cache-control': 'no-store' })
+      response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
+      return false
     }
-    response.writeHead(401, { 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' })
-    response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
+    const entries = [...this.registered.values()].filter(provider => provider.matchesEntry?.(request))
+    if (entries.length > 1) throw new Error('authentication: multiple providers claimed the login entry')
+    const entry = entries[0]
+    if (entry !== undefined) {
+      await this.start(entry.id, request, response)
+      return false
+    }
+    if (this.registered.size === 0) {
+      response.writeHead(401, { 'cache-control': 'no-store' })
+      response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
+      return false
+    }
+    await this.start(this.defaultProvider().id, request, response)
     return false
   }
 
-  /**
-   * Build an initial login URL using the highest-priority provider.
-   * @param baseUrl - clean Web URL preserving the deployment authority and mount.
-   * @returns the provider-selected login URL.
-   */
-  authenticatedUrl(baseUrl: string): string {
-    const provider = this.ordered()[0]
-    if (provider === undefined) throw new Error('authentication has no registered provider')
-    return provider.authenticatedUrl(baseUrl)
+  /** Start an explicitly selected provider's flow; the provider owns the response. */
+  async start(providerId: string, request: AuthenticationRequest, response: AuthenticationIndexResponse): Promise<void> {
+    request.signal?.throwIfAborted()
+    await this.requireProvider(providerId).start(request, response)
   }
 
-  private ordered(): AuthenticationProvider[] {
-    return [...this.providers.values()].sort((left, right) =>
-      (right.priority ?? 0) - (left.priority ?? 0) || left.id.localeCompare(right.id))
+  /** Build the selected login URL; multiple providers require an explicit deployment default. */
+  authenticatedUrl(baseUrl: string, providerId?: string): string {
+    return (providerId === undefined ? this.defaultProvider() : this.requireProvider(providerId)).authenticatedUrl(baseUrl)
+  }
+
+  private defaultProvider(): AuthenticationProvider {
+    if (this.config.defaultProvider !== undefined) return this.requireProvider(this.config.defaultProvider)
+    const ids = this.providers()
+    if (ids.length !== 1 || ids[0] === undefined) throw new Error('authentication: configure defaultProvider when not exactly one provider is installed')
+    return this.requireProvider(ids[0])
+  }
+
+  private requireProvider(id: string): AuthenticationProvider {
+    const provider = this.registered.get(id)
+    if (provider === undefined) throw new Error('authentication: provider not registered: ' + id)
+    return provider
   }
 }
-
 export default AuthenticationService

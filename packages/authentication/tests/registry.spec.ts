@@ -18,7 +18,7 @@ function provider(id: string, priority: number, decision: 'allow' | 'handled' | 
 describe('AuthenticationService', () => {
   it('selects the highest-priority login URL and resolves provider principals', async () => {
     const ctx = new Context()
-    const fiber = await ctx.plugin(AuthenticationService)
+    const fiber = await ctx.plugin(AuthenticationService, { defaultProvider: 'high' })
     try {
       ctx.authentication.register(provider('low', 1, 'decline'))
       ctx.authentication.register(provider('high', 10, 'allow'))
@@ -34,7 +34,7 @@ describe('AuthenticationService', () => {
 
   it('lets a provider handle an index response and removes it through its disposer', async () => {
     const ctx = new Context()
-    const fiber = await ctx.plugin(AuthenticationService)
+    const fiber = await ctx.plugin(AuthenticationService, { defaultProvider: 'login' })
     const response = { status: undefined as number | undefined, body: undefined as string | undefined,
       writeHead(status: number) { response.status = status }, end(body?: string) { response.body = body } }
     try {
@@ -55,7 +55,7 @@ describe('AuthenticationService', () => {
     const fiber = await ctx.plugin(AuthenticationService)
     try {
       ctx.authentication.register(provider('same', 0, 'decline'))
-      expect(() => ctx.authentication.register(provider('same', 1, 'allow'))).toThrow(/already registered/)
+      expect(() => ctx.authentication.register(provider('same', 1, 'allow'))).toThrow(/duplicate provider/)
     } finally {
       await fiber.dispose()
     }
