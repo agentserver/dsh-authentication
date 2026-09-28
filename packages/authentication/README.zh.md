@@ -33,7 +33,7 @@ kind: "package-reference"
 <details>
 <summary>实现内部——点击展开</summary>
 
-注册表按优先级排序 provider。index 请求如果已经被某个 provider 认证就放行；如果某个 provider 启动登录，则由它处理；没有 provider 接受时拒绝。API 请求只要有一个 provider 校验凭据成功即可通过。provider 注册返回 disposer，插件卸载时会移除对应认证方式。
+注册表按优先级排序 provider。每个请求只认证一次，并返回 anonymous 或 principal；index 请求随后交给第一个处理登录入口的 provider。provider 注册返回 disposer，插件卸载时会移除对应认证方式。
 
 不发布 runtime invariant companion；注册表拥有唯一的 provider 映射，注册与卸载测试覆盖可观察关系。
 

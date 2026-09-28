@@ -49,7 +49,7 @@ Mount it after `@deepseek-ai/dsh-client-connection` and configure an OIDC public
 | `cookieMaxAgeDays` | `30` | Maximum signed browser-session lifetime. |
 | `requestTimeoutMs` | `15000` | Discovery and token-exchange deadline. |
 
-The plugin stores only a signing secret in the configured credential provider. It does not store ID tokens or access tokens. A callback validates state, PKCE, nonce, issuer, audience, signature, and the `sub` claim before issuing a cookie. The Host provides an `oidcAuth` lookup through `ctx.get('oidcAuth')` for a later tenant-scoped facade. Failed discovery or callback verification fails closed.
+The plugin stores only a signing secret in the configured credential provider. It does not store ID tokens or access tokens. A callback validates state, PKCE, nonce, issuer, audience, signature, and the sub claim before issuing a cookie. The authenticated principal is returned by ctx.authentication.authenticate() for later tenant-scoped authorization. Failed discovery or callback verification fails closed.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation

@@ -2,7 +2,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { AuthenticationDecision, AuthenticationProvider, AuthenticationService } from '@agentserver/dsh-authentication'
+import type { AuthenticationDecision, AuthenticationProvider, AuthenticationResult, AuthenticationService } from '@agentserver/dsh-authentication'
 import type {} from '@agentserver/dsh-authentication'
 import type {} from '@deepseek-ai/dsh-credentials'
 import { BrowserAuth } from './browser-auth.ts'
@@ -27,19 +27,19 @@ class TokenProvider implements AuthenticationProvider {
 
   constructor(private readonly auth: BrowserAuth) {}
 
-  authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision {
-    if (this.auth.isAuthenticated(request)) return 'allow'
+  authenticate(request: AuthenticationRequest): AuthenticationResult {
+    const principal = this.auth.principal(request)
+    return principal === undefined
+      ? { kind: 'anonymous' }
+      : { kind: 'authenticated', principal: { provider: this.id, authority: principal.authority } }
+  }
+
+  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision {
     const url = new URL(request.url ?? '/', 'http://dsh.invalid')
     return url.searchParams.has('token') ? (this.auth.authorizeIndex(request, response), 'handled') : 'decline'
   }
 
-  isAuthenticated(request: AuthenticationRequest): boolean { return this.auth.isAuthenticated(request) }
-
   authenticatedUrl(baseUrl: string): string { return this.auth.authenticatedUrl(baseUrl) }
-
-  principal(request: AuthenticationRequest) {
-    return this.isAuthenticated(request) ? { provider: this.id } : undefined
-  }
 }
 
 /** Cordis plugin name. */

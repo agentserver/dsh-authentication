@@ -50,7 +50,7 @@ describe('OidcAuthenticator', () => {
       {} as never,
     )
     const output = response()
-    expect(auth.authorizeIndex(request('/', { host: '127.0.0.1:3080' }), output.value)).toBe('handled')
+    expect(auth.start(request('/', { host: '127.0.0.1:3080' }), output.value)).toBe('handled')
     expect(output.value.status).toBe(302)
     const location = new URL(output.value.headers?.location ?? '')
     expect(location.origin).toBe('https://issuer.example')
@@ -58,7 +58,7 @@ describe('OidcAuthenticator', () => {
     expect(location.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(location.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]+$/)
     const tokenEntry = response()
-    expect(auth.authorizeIndex(request('/?token=local-token', { host: '127.0.0.1:3080' }), tokenEntry.value)).toBe('decline')
+    expect(auth.start(request('/?token=local-token', { host: '127.0.0.1:3080' }), tokenEntry.value)).toBe('decline')
     expect(tokenEntry.value.status).toBeUndefined()
   })
 
@@ -94,14 +94,17 @@ describe('OidcAuthenticator', () => {
     )
     try {
       const start = response()
-      auth.authorizeIndex(request('/', { host: `127.0.0.1:${String(port)}` }), start.value)
+      auth.start(request('/', { host: `127.0.0.1:${String(port)}` }), start.value)
       const authorization = new URL(start.value.headers?.location ?? '')
       expectedNonce = authorization.searchParams.get('nonce') ?? ''
       const callback = response()
       await auth.handleCallback(request(`/oidc/callback?state=${encodeURIComponent(authorization.searchParams.get('state') ?? '')}&code=abc`, { host: `127.0.0.1:${String(port)}` }), callback.value)
       expect(callback.value.status).toBe(302)
       expect(callback.value.headers?.['set-cookie']).toContain('dsh-auth-oidc-')
-      expect(auth.isAuthenticated(request('/', { host: `127.0.0.1:${String(port)}`, cookie: callback.value.headers?.['set-cookie'] ?? '' }))).toBe(true)
+      expect(auth.authenticate({ headers: { host: `127.0.0.1:${String(port)}`, cookie: callback.value.headers?.['set-cookie'] ?? '' } })).toMatchObject({
+        kind: 'authenticated',
+        principal: { provider: 'oidc', subject: 'user-1' },
+      })
     } finally {
       server.close()
       await once(server, 'close')

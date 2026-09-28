@@ -49,7 +49,7 @@ kind: "package-reference"
 | `cookieMaxAgeDays` | `30` | 签名浏览器会话的最长生命周期。 |
 | `requestTimeoutMs` | `15000` | discovery 与 token exchange 的截止时间。 |
 
-本插件只在配置的 credential provider 中保存签名 secret，不保存 ID token 或 access token。回调会校验 state、PKCE、nonce、issuer、audience、签名和 `sub` 字段后才签发 cookie。Host 通过 `ctx.get('oidcAuth')` 提供已校验的 `sub` 与 authority 查询，供后续 tenant-scoped facade 使用。discovery 或回调校验失败时拒绝访问。
+本插件只在配置的 credential provider 中保存签名 secret，不保存 ID token 或 access token。回调会校验 state、PKCE、nonce、issuer、audience、签名和 sub 字段后才签发 cookie。认证后的 principal 通过 ctx.authentication.authenticate() 返回，供后续 tenant scoped authorization 使用。discovery 或回调校验失败时拒绝访问。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现

@@ -292,18 +292,25 @@ export class BrowserAuth {
    * @returns true only for an unexpired cookie signed by this activation's loaded secret.
    */
   isAuthenticated(request: AuthenticationRequest): boolean {
+    return this.principal(request) !== undefined
+  }
+
+  /** Resolve the authority-bound local browser session. */
+  principal(request: AuthenticationRequest): { readonly authority: string } | undefined {
     const authority = requestAuthority(request.headers)
     const rawCookie = header(request.headers, 'cookie')
-    if (authority === undefined || rawCookie === undefined) return false
+    if (authority === undefined || rawCookie === undefined) return undefined
     const value = cookieValue(rawCookie, cookieName(authority))
-    if (value === undefined) return false
+    if (value === undefined) return undefined
     const payload = decodeCookie(value, this.secret)
-    if (payload === undefined || payload.authority !== authority) return false
+    if (payload === undefined || payload.authority !== authority) return undefined
     const now = Date.now()
     return payload.issuedAt <= now
       && payload.expiresAt > now
       && payload.expiresAt > payload.issuedAt
       && payload.expiresAt - payload.issuedAt <= this.maxAgeMilliseconds
+      ? { authority }
+      : undefined
   }
 
   private writeUnauthorized(req: AuthenticationIndexRequest, res: AuthenticationIndexResponse): void {

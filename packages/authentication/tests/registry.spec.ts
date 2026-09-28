@@ -6,8 +6,10 @@ function provider(id: string, priority: number, decision: 'allow' | 'handled' | 
   return {
     id,
     priority,
-    authorizeIndex: (_request, _response) => decision,
-    isAuthenticated: () => decision === 'allow',
+    authenticate: () => decision === 'allow'
+      ? { kind: 'authenticated', principal: { provider: id } }
+      : { kind: 'anonymous' },
+    start: (_request, _response) => decision,
     authenticatedUrl: (baseUrl) => `${baseUrl}?provider=${id}`,
     principal: () => decision === 'allow' ? { provider: id } : undefined,
   }
@@ -21,8 +23,10 @@ describe('AuthenticationService', () => {
       ctx.authentication.register(provider('low', 1, 'decline'))
       ctx.authentication.register(provider('high', 10, 'allow'))
       expect(ctx.authentication.authenticatedUrl('http://dsh.test/')).toBe('http://dsh.test/?provider=high')
-      expect(ctx.authentication.isAuthenticated({ headers: {} })).toBe(true)
-      expect(ctx.authentication.principal({ headers: {} })).toEqual({ provider: 'high' })
+      await expect(ctx.authentication.authenticate({ headers: {} })).resolves.toEqual({
+        kind: 'authenticated',
+        principal: { provider: 'high' },
+      })
     } finally {
       await fiber.dispose()
     }
@@ -35,10 +39,10 @@ describe('AuthenticationService', () => {
       writeHead(status: number) { response.status = status }, end(body?: string) { response.body = body } }
     try {
       const dispose = ctx.authentication.register(provider('login', 1, 'handled'))
-      expect(ctx.authentication.authorizeIndex({ method: 'GET', url: '/', headers: {} }, response)).toBe(false)
+      await expect(ctx.authentication.authorizeIndex({ method: 'GET', url: '/', headers: {} }, response)).resolves.toBe(false)
       expect(response.status).toBeUndefined()
       dispose()
-      expect(ctx.authentication.authorizeIndex({ method: 'GET', url: '/', headers: {} }, response)).toBe(false)
+      await expect(ctx.authentication.authorizeIndex({ method: 'GET', url: '/', headers: {} }, response)).resolves.toBe(false)
       expect(response.status).toBe(401)
       expect(response.body).toContain('authentication required')
     } finally {

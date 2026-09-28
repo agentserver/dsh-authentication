@@ -1,7 +1,7 @@
 {
   "name": "@agentserver/dsh-authentication",
   "description": "Authentication provider registry for DeepSeek Harness browser transports",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",

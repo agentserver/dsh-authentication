@@ -10,6 +10,7 @@ import type {
   AuthenticationIndexResponse,
   AuthenticationProvider,
   AuthenticationRequest,
+  AuthenticationResult,
 } from '@agentserver/dsh-authentication'
 import type {} from '@agentserver/dsh-authentication'
 import {
@@ -30,23 +31,6 @@ export interface OidcPrincipal {
   readonly subject: string
   /** Request authority the browser session is bound to. */
   readonly authority: string
-}
-
-/** Host-side identity lookup provided by the OIDC plugin. */
-export interface OidcIdentity {
-  /**
-   * Resolve the authenticated browser identity for one request.
-   * @param request - request headers carrying the signed browser cookie.
-   * @returns the principal, or undefined when the request is unauthenticated.
-   */
-  principal(request: AuthenticationRequest): OidcPrincipal | undefined
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    /** OIDC identity lookup for tenant-scoped consumers. */
-    oidcAuth: OidcIdentity
-  }
 }
 
 const SECRET_KEY = credentialKey('authentication-oidc', 'browser-session')
@@ -242,8 +226,14 @@ export class OidcAuthenticator implements AuthenticationProvider {
     private readonly credentials: CredentialProvider,
   ) {}
 
-  authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision {
-    if (this.isAuthenticated(request)) return 'allow'
+  authenticate(request: AuthenticationRequest): AuthenticationResult {
+    const principal = this.principal(request)
+    return principal === undefined
+      ? { kind: 'anonymous' }
+      : { kind: 'authenticated', principal }
+  }
+
+  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision {
     // Preserve the explicit launch-token entry point when the local provider
     // is mounted beside OIDC; an OIDC redirect is the fallback for ordinary
     // browser navigation.
@@ -278,10 +268,6 @@ export class OidcAuthenticator implements AuthenticationProvider {
     authorization.searchParams.set('code_challenge_method', 'S256')
     redirectResponse(response, authorization.href)
     return 'handled'
-  }
-
-  isAuthenticated(request: AuthenticationRequest): boolean {
-    return this.principal(request) !== undefined
   }
 
   principal(request: AuthenticationRequest): OidcPrincipal | undefined {
@@ -416,7 +402,6 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     ...(resolved.clientSecretRef === undefined ? {} : { clientSecretRef: resolved.clientSecretRef }),
     ...(resolved.redirectUri === undefined ? {} : { redirectUri: resolved.redirectUri }),
   }, ctx.credentials)
-  ctx.provide('oidcAuth', { principal: (request: AuthenticationRequest) => authenticator.principal(request) } as never)
   const route: WebRoute = {
     kind: 'exact', path: resolved.callbackPath,
     handler: (request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse) =>

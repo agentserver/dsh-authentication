@@ -2,16 +2,16 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 
-/** Request headers accepted by the authentication provider registry. */
+/** Incoming request facts used by authentication providers. */
 export interface AuthenticationRequest {
-  readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
-}
-
-/** Frontend index request accepted by the authentication provider registry. */
-export interface AuthenticationIndexRequest extends AuthenticationRequest {
   readonly method?: string | undefined
   readonly url?: string | undefined
+  readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
+  readonly signal?: AbortSignal | undefined
 }
+
+/** Frontend index request accepted by the authentication entry flow. */
+export type AuthenticationIndexRequest = AuthenticationRequest
 
 /** Minimal response writer owned by an authentication provider. */
 export interface AuthenticationIndexResponse {
@@ -29,7 +29,12 @@ export interface AuthenticationPrincipal {
   readonly authority?: string
 }
 
-/** Result of an unauthenticated frontend request. */
+/** Result returned by one authentication provider. */
+export type AuthenticationResult =
+  | { readonly kind: 'authenticated'; readonly principal: AuthenticationPrincipal }
+  | { readonly kind: 'anonymous' }
+
+/** Result of an unauthenticated frontend entry request. */
 export type AuthenticationDecision = 'allow' | 'handled' | 'decline'
 
 /** One independently installable browser authentication provider. */
@@ -38,14 +43,12 @@ export interface AuthenticationProvider {
   readonly id: string
   /** Provider precedence when more than one provider can start a login. @default 0 */
   readonly priority?: number
-  /** Authenticate or start this provider's frontend login flow. */
-  authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision
-  /** Check this provider's request credential. */
-  isAuthenticated(request: AuthenticationRequest): boolean
+  /** Validate this provider's request credential. */
+  authenticate(request: AuthenticationRequest): AuthenticationResult | Promise<AuthenticationResult>
+  /** Start this provider's browser login flow for an anonymous request. */
+  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): AuthenticationDecision | Promise<AuthenticationDecision>
   /** Build the URL that starts this provider's login flow. */
   authenticatedUrl(baseUrl: string): string
-  /** Resolve the identity carried by this provider's request credential. */
-  principal(request: AuthenticationRequest): AuthenticationPrincipal | undefined
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -77,42 +80,34 @@ export class AuthenticationService extends Service {
   }
 
   /**
-   * Authenticate a frontend index request through the registered providers.
+   * Authenticate a request through the registered providers.
+   * @param request - incoming request facts.
+   * @returns the first authenticated principal, or an anonymous result.
+   */
+  async authenticate(request: AuthenticationRequest): Promise<AuthenticationResult> {
+    for (const provider of this.ordered()) {
+      const result = await provider.authenticate(request)
+      if (result.kind === 'authenticated') return result
+    }
+    return { kind: 'anonymous' }
+  }
+
+  /**
+   * Authenticate a frontend index request, then start one registered login flow.
    * @param request - incoming index request.
    * @param response - response owned when no provider allows the request.
    * @returns true when the frontend may serve the index.
    */
-  authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): boolean {
+  async authorizeIndex(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): Promise<boolean> {
+    if ((await this.authenticate(request)).kind === 'authenticated') return true
     for (const provider of this.ordered()) {
-      const decision = provider.authorizeIndex(request, response)
+      const decision = await provider.start(request, response)
       if (decision === 'allow') return true
       if (decision === 'handled') return false
     }
     response.writeHead(401, { 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' })
     response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
     return false
-  }
-
-  /**
-   * Return true when any provider authenticates the request.
-   * @param request - request headers carrying provider credentials.
-   * @returns true when one provider accepts the request.
-   */
-  isAuthenticated(request: AuthenticationRequest): boolean {
-    return this.ordered().some(provider => provider.isAuthenticated(request))
-  }
-
-  /**
-   * Resolve the first provider identity carried by the request.
-   * @param request - request headers carrying provider credentials.
-   * @returns the authenticated principal, or undefined when no provider accepts it.
-   */
-  principal(request: AuthenticationRequest): AuthenticationPrincipal | undefined {
-    for (const provider of this.ordered()) {
-      const principal = provider.principal(request)
-      if (principal !== undefined) return principal
-    }
-    return undefined
   }
 
   /**
