@@ -32,7 +32,7 @@ Mount the registry before `@deepseek-ai/dsh-client-connection`, then mount one o
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The registry orders providers by priority. Each request is authenticated once and returns either an anonymous result or a principal; an index request then starts the first provider-owned login flow that handles it. Provider registration returns a disposer, so unloading a plugin removes its authentication method.
+The registry orders providers by priority. Each request is authenticated once and returns an anonymous result, a principal, or an explicit rejection; an anonymous index request then offers the entry response to each provider until one returns `handled`. Provider registration returns a disposer, so unloading a plugin removes its authentication method. `authorizeIndex()` is always asynchronous because a provider may verify a remote credential before an entry flow starts.
 
 No runtime invariant companion is published; the registry owns one provider map and its registration/disposal tests cover the observable relationships.
 

@@ -22,6 +22,7 @@ declare module '@deepseek-ai/cordis' {
 export class AuthenticationService extends Service {
   static Config = Config
   private readonly registered = new Map<string, AuthenticationProvider>()
+  private revision = 0
 
   constructor(ctx: Context, private readonly config: Config = {}) {
     super(ctx, 'authentication')
@@ -31,8 +32,12 @@ export class AuthenticationService extends Service {
   register(provider: AuthenticationProvider): () => void {
     if (this.registered.has(provider.id)) throw new Error('authentication: duplicate provider ' + provider.id)
     this.registered.set(provider.id, provider)
+    this.revision++
     return () => {
-      if (this.registered.get(provider.id) === provider) this.registered.delete(provider.id)
+      if (this.registered.get(provider.id) === provider) {
+        this.registered.delete(provider.id)
+        this.revision++
+      }
     }
   }
 
@@ -48,52 +53,42 @@ export class AuthenticationService extends Service {
    */
   async authenticate(request: AuthenticationRequest): Promise<AuthenticationResult> {
     request.signal?.throwIfAborted()
+    const revision = this.revision
     let accepted: AuthenticationResult = { kind: 'anonymous' }
     const checked: AuthenticationProvider[] = []
-    for (const id of this.providers()) {
-      const provider = this.requireProvider(id)
+    for (const provider of this.ordered()) {
+      if (this.revision !== revision || this.registered.get(provider.id) !== provider) {
+        return { kind: 'rejected', status: 401 }
+      }
       const result = await provider.authenticate(request)
       checked.push(provider)
       request.signal?.throwIfAborted()
-      if (checked.some(item => this.registered.get(item.id) !== item)) return { kind: 'rejected', status: 401 }
+      if (this.revision !== revision || checked.some(item => this.registered.get(item.id) !== item)) {
+        return { kind: 'rejected', status: 401 }
+      }
       if (result.kind === 'rejected') return result
       if (result.kind === 'authenticated') {
         if (accepted.kind === 'authenticated') return { kind: 'rejected', status: 401 }
-        accepted = { kind: 'authenticated', principal: Object.freeze({ ...result.principal, provider: id }) }
+        accepted = { kind: 'authenticated', principal: Object.freeze({ ...result.principal, provider: provider.id }) }
       }
     }
     return accepted
   }
 
-  /** Authenticate the index or hand its response to one explicit login entry. */
+  /** Authenticate the index request, then let one provider own an anonymous entry response. */
   async authorizeIndex(request: AuthenticationRequest, response: AuthenticationIndexResponse): Promise<boolean> {
     const result = await this.authenticate(request)
     if (result.kind === 'authenticated') return true
     if (result.kind === 'rejected') {
-      response.writeHead(result.status, { 'cache-control': 'no-store' })
-      response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
+      this.rejectIndex(response, request, result.status)
       return false
     }
-    const entries = [...this.registered.values()].filter(provider => provider.matchesEntry?.(request))
-    if (entries.length > 1) throw new Error('authentication: multiple providers claimed the login entry')
-    const entry = entries[0]
-    if (entry !== undefined) {
-      await this.start(entry.id, request, response)
-      return false
+    for (const provider of this.ordered()) {
+      const decision = await provider.start(request, response)
+      if (decision === 'handled') return false
     }
-    if (this.registered.size === 0) {
-      response.writeHead(401, { 'cache-control': 'no-store' })
-      response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
-      return false
-    }
-    await this.start(this.defaultProvider().id, request, response)
+    this.rejectIndex(response, request, 401)
     return false
-  }
-
-  /** Start an explicitly selected provider's flow; the provider owns the response. */
-  async start(providerId: string, request: AuthenticationRequest, response: AuthenticationIndexResponse): Promise<void> {
-    request.signal?.throwIfAborted()
-    await this.requireProvider(providerId).start(request, response)
   }
 
   /** Build the selected login URL; multiple providers require an explicit deployment default. */
@@ -108,10 +103,20 @@ export class AuthenticationService extends Service {
     return this.requireProvider(ids[0])
   }
 
+  private ordered(): AuthenticationProvider[] {
+    return [...this.registered.values()].sort((left, right) =>
+      (right.priority ?? 0) - (left.priority ?? 0) || left.id.localeCompare(right.id))
+  }
+
   private requireProvider(id: string): AuthenticationProvider {
     const provider = this.registered.get(id)
     if (provider === undefined) throw new Error('authentication: provider not registered: ' + id)
     return provider
+  }
+
+  private rejectIndex(response: AuthenticationIndexResponse, request: AuthenticationRequest, status: 401 | 403): void {
+    response.writeHead(status, { 'cache-control': 'no-store' })
+    response.end(request.method === 'HEAD' ? undefined : 'dsh web authentication required; reopen the URL printed by dsh.\n')
   }
 }
 export default AuthenticationService

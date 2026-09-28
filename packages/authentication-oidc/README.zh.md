@@ -57,7 +57,7 @@ kind: "package-reference"
 <details>
 <summary>实现内部——点击展开</summary>
 
-Connection 包拥有 trust fence 和 RPC 路由。本插件在激活时读取 OIDC metadata，注册回调路由，并注册自己的 provider：provider 重定向 frontend index 请求，并在后续 API 请求中同步校验签名 cookie。多个 authentication provider 可以通过优先级同时注册。
+Connection 包拥有 trust fence 和 RPC 路由。本插件在激活时读取 OIDC metadata，注册回调路由，并注册自己的 provider：provider 对签名 cookie 返回 authenticated principal，或通过 OIDC 重定向接管 anonymous 的 index 响应。多个 authentication provider 可以通过优先级同时注册；遇到 token 查询参数时显式 decline，由 token provider 处理。
 
 不发布 runtime invariant companion；OIDC 校验与回调行为在 provider 和路由入口处检查。
 

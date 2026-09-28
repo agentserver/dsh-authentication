@@ -6,7 +6,7 @@ import type { AuthenticationProvider, AuthenticationResult, AuthenticationServic
 import type {} from '@agentserver/dsh-authentication'
 import type {} from '@deepseek-ai/dsh-credentials'
 import { BrowserAuth } from './browser-auth.ts'
-import type { AuthenticationIndexRequest, AuthenticationIndexResponse, AuthenticationRequest } from '@agentserver/dsh-authentication'
+import type { AuthenticationIndexResponse, AuthenticationRequest } from '@agentserver/dsh-authentication'
 
 export { BrowserAuth } from './browser-auth.ts'
 
@@ -34,12 +34,10 @@ class TokenProvider implements AuthenticationProvider {
       : { kind: 'authenticated', principal: { provider: this.id, authority: principal.authority } }
   }
 
-  matchesEntry(request: AuthenticationIndexRequest): boolean {
-    return new URL(request.url ?? '/', 'http://dsh.invalid').searchParams.has('token')
-  }
-
-  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): void {
+  start(request: AuthenticationRequest, response: AuthenticationIndexResponse): 'handled' | 'decline' {
+    if (!new URL(request.url ?? '/', 'http://dsh.invalid').searchParams.has('token')) return 'decline'
     this.auth.authorizeIndex(request, response)
+    return 'handled'
   }
 
   authenticatedUrl(baseUrl: string): string { return this.auth.authenticatedUrl(baseUrl) }

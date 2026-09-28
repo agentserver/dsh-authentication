@@ -31,15 +31,17 @@ export type AuthenticationResult =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'rejected'; readonly status: 401 | 403 }
 
+/** Entry-flow response ownership after credential authentication returned anonymous. */
+export type AuthenticationDecision = 'handled' | 'decline'
+
 /** Independent verifier and browser flow. Callback/challenge routes are provider-owned Cordis effects. */
 export interface AuthenticationProvider {
   readonly id: string
+  readonly priority?: number
   /** Validate credentials without redirecting, consuming a body, or writing a response. */
   authenticate(request: AuthenticationRequest): AuthenticationResult | Promise<AuthenticationResult>
-  /** Claim only this provider's explicit login input; ordinary navigation must not match. */
-  matchesEntry?(request: AuthenticationRequest): boolean
-  /** Own the entry response; never authorize index rendering. */
-  start(request: AuthenticationRequest, response: AuthenticationIndexResponse): void | Promise<void>
+  /** Start or continue the entry flow and claim the response when handled. */
+  start(request: AuthenticationRequest, response: AuthenticationIndexResponse): AuthenticationDecision | Promise<AuthenticationDecision>
   /** Construct the login URL preserving the application's public mount. */
   authenticatedUrl(baseUrl: string): string
 }

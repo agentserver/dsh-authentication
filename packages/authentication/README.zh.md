@@ -33,7 +33,7 @@ kind: "package-reference"
 <details>
 <summary>实现内部——点击展开</summary>
 
-注册表按优先级排序 provider。每个请求只认证一次，并返回 anonymous 或 principal；index 请求随后交给第一个处理登录入口的 provider。provider 注册返回 disposer，插件卸载时会移除对应认证方式。
+注册表按优先级排序 provider。每个请求只认证一次，并返回 anonymous、principal 或显式拒绝；anonymous 的 index 请求随后依次交给 provider，直到某个 provider 返回 `handled`。provider 注册返回 disposer，插件卸载时会移除对应认证方式。由于 provider 可能在进入登录流程前异步校验远程凭据，`authorizeIndex()` 始终是异步方法。
 
 不发布 runtime invariant companion；注册表拥有唯一的 provider 映射，注册与卸载测试覆盖可观察关系。
 

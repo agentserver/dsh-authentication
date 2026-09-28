@@ -5,7 +5,6 @@ import { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {
-  AuthenticationIndexRequest,
   AuthenticationIndexResponse,
   AuthenticationProvider,
   AuthenticationRequest,
@@ -232,10 +231,12 @@ export class OidcAuthenticator implements AuthenticationProvider {
       : { kind: 'authenticated', principal }
   }
 
-  start(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): void {
+  start(request: AuthenticationRequest, response: AuthenticationIndexResponse): 'handled' | 'decline' {
+    const requested = new URL(request.url ?? '/', 'http://dsh.invalid')
+    if (requested.searchParams.has('token')) return 'decline'
     const host = authority(request)
     if (host === undefined || request.method !== 'GET') {
-      response.writeHead(401, { 'cache-control': 'no-store' }); response.end(); return
+      response.writeHead(401, { 'cache-control': 'no-store' }); response.end(); return 'handled'
     }
     const now = Date.now()
     for (const [candidate, pending] of this.pending) {
@@ -261,6 +262,7 @@ export class OidcAuthenticator implements AuthenticationProvider {
     authorization.searchParams.set('code_challenge', encode(createHash('sha256').update(verifier).digest()))
     authorization.searchParams.set('code_challenge_method', 'S256')
     redirectResponse(response, authorization.href)
+    return 'handled'
   }
 
   principal(request: AuthenticationRequest): OidcPrincipal | undefined {
@@ -278,7 +280,7 @@ export class OidcAuthenticator implements AuthenticationProvider {
     return new URL(baseUrl).href
   }
 
-  async handleCallback(request: AuthenticationIndexRequest, response: AuthenticationIndexResponse): Promise<void> {
+  async handleCallback(request: AuthenticationRequest, response: AuthenticationIndexResponse): Promise<void> {
     const url = new URL(request.url ?? '/', 'http://dsh.invalid')
     const state = singleQuery(url, 'state')
     const code = singleQuery(url, 'code')

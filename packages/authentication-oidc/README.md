@@ -57,7 +57,7 @@ The plugin stores only a signing secret in the configured credential provider. I
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The Connection package owns the trust fence and RPC routes. This plugin discovers OIDC metadata during activation, registers the callback route, and registers a provider that redirects the frontend index request and validates its signed cookie synchronously on later API requests. Multiple authentication providers may be registered with different priorities.
+The Connection package owns the trust fence and RPC routes. This plugin discovers OIDC metadata during activation, registers the callback route, and registers a provider that returns an authenticated principal for its signed cookie or claims the anonymous index response with an OIDC redirect. Multiple authentication providers may be registered with different priorities; a token query is explicitly declined so the token provider can handle it.
 
 No runtime invariant companion is published; OIDC verification and callback behavior are checked at the provider and route boundaries.
 
